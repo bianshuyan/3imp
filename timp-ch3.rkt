@@ -87,3 +87,79 @@
                 (VM a body (extend e var* r) '() s)])]
     [(return) (match s
                 [(call-frame ,x ,e ,r ,s) (VM a x e r s)])]))
+(define (run x)
+  (VM '() (compile x '(halt)) '() '() '()))
+(define (make-machine exp)
+  (define a '())
+  (define x (compile exp '(halt)))
+  (define e '())
+  (define r '())
+  (define s '())
+  (define (print-state)
+    (printf "val: ~s\nexp: ~s\nenv: ~s\narg*: ~s\nstk: ~s\n" a x e r s))
+  (define (step)
+    (match x
+      [(halt)
+       (printf "The computation has been finished, and current state of the machine is\n")
+       (print-state)]
+      [(refer ,var ,next)
+       (set! a (apply-env e var))
+       (set! x next)
+       (print-state)]
+      [(constant ,obj ,next)
+       (set! a obj)
+       (set! x next)
+       (print-state)]
+      [(close ,var* ,body ,next)
+       (set! a (closure body e var*))
+       (set! x next)
+       (print-state)]
+      [(test ,then ,else)
+       (if a
+           (set! x then)
+           (set! x else))
+       (print-state)]
+      [(assign ,var ,next)
+       (set! x next)
+       (set-val! e var a)
+       (print-state)]
+      [(conti ,next)
+       (set! a (continuation s))
+       (set! x next)
+       (print-state)]
+      [(nuate ,stk ,var)
+       (set! a (apply-env e var))
+       (set! x '(return))
+       (set! s stk)
+       (print-state)]
+      [(frame ,ret ,next)
+       (set! x next)
+       (set! r '())
+       (set! s (call-frame ret e r s))
+       (print-state)]
+      [(argument ,next)
+       (set! x next)
+       (set! r (addv a r))
+       (print-state)]
+      [(apply)
+       (match a
+         [(closure ,body ,env ,var*)
+          (set! x body)
+          (set! e (extend env var* r))
+          (set! r '())
+          (print-state)])]
+      [(return)
+       (match s
+         [(call-frame ,exp ,env ,rib ,stk)
+          (set! x exp)
+          (set! e env)
+          (set! r rib)
+          (set! s stk)
+          (print-state)])]))
+  (lambda (msg)
+    (case msg
+      [(step) (step)]
+      [(print-state) (print-state)])))
+(define m0
+  (make-machine '((lambda (x) (x x))
+                  (lambda (x) (x x)))))
